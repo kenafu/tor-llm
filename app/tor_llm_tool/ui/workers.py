@@ -28,3 +28,23 @@ class FunctionWorker(QRunnable):
         finally:
             self.signals.finished.emit()
 
+
+class StreamWorker(QRunnable):
+    def __init__(self, iterable_factory, *args, **kwargs) -> None:  # noqa: ANN001
+        super().__init__()
+        self.iterable_factory = iterable_factory
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+    @Slot()
+    def run(self) -> None:
+        chunks: list[str] = []
+        try:
+            for chunk in self.iterable_factory(*self.args, **self.kwargs):
+                chunks.append(str(chunk))
+                self.signals.result.emit(str(chunk))
+        except Exception as exc:  # noqa: BLE001
+            self.signals.error.emit(exc)
+        else:
+            self.signals.finished.emit()

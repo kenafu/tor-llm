@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QThreadPool, QTimer, Qt
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QKeySequence, QShortcut, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -32,7 +32,7 @@ from tor_llm_tool.ui.hotkey import GlobalHotkey
 from tor_llm_tool.ui.image_utils import pil_to_pixmap
 from tor_llm_tool.ui.region_selector import RegionSelector
 from tor_llm_tool.ui.settings_dialog import SettingsDialog
-from tor_llm_tool.ui.workers import FunctionWorker
+from tor_llm_tool.ui.workers import FunctionWorker, StreamWorker
 
 
 class MainWindow(QMainWindow):
@@ -265,8 +265,16 @@ class MainWindow(QMainWindow):
         self.result.setPlainText("")
         self.statusBar().showMessage("LM Studio に送信中...")
         request = self._build_assistant_request()
-        worker = FunctionWorker(AssistantService(self.config).run, request)
-        worker.signals.result.connect(self._on_assistant_result)
+        service = AssistantService(self.config)
+        if self.config.llm.stream:
+            worker = StreamWorker(service.stream, request)
+            worker.signals.result.connect(self._append_assistant_chunk)
+            worker.signals.finished.connect(
+                lambda: self.statusBar().showMessage("完了しました。", 3000)
+            )
+        else:
+            worker = FunctionWorker(service.run, request)
+            worker.signals.result.connect(self._on_assistant_result)
         worker.signals.error.connect(self._show_error)
         self.thread_pool.start(worker)
 
@@ -296,6 +304,11 @@ class MainWindow(QMainWindow):
     def _on_assistant_result(self, text: str) -> None:
         self.result.setMarkdown(text)
         self.statusBar().showMessage("完了しました。", 3000)
+
+    def _append_assistant_chunk(self, chunk: str) -> None:
+        self.result.moveCursor(QTextCursor.MoveOperation.End)
+        self.result.insertPlainText(chunk)
+        self.result.moveCursor(QTextCursor.MoveOperation.End)
 
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.config, self)

@@ -11,7 +11,8 @@ Tor Browser に拡張を入れず、画面上の指定範囲をスクリーン�
 - Active app / process / window title capture
 - URL candidate extraction from OCR text
 - LM Studio OpenAI-compatible provider
-- Settings dialog
+- Settings dialog with model refresh and connection test
+- Streaming response display
 - Translate / explain / ask / clean OCR tasks
 
 ## Setup

@@ -10,3 +10,8 @@ class LlmProvider(ABC):
     def complete(self, request: AssistantRequest) -> str:
         raise NotImplementedError
 
+    def complete_stream(self, request: AssistantRequest):
+        yield self.complete(request)
+
+    def list_models(self) -> list[str]:
+        return []
