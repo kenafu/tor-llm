@@ -1,0 +1,47 @@
+[project]
+name = "tor-llm-tool"
+version = "0.1.0"
+description = "Standalone local LLM screen-region support tool"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27.0",
+  "mss>=9.0.1",
+  "pillow>=10.3.0",
+  "psutil>=5.9.8",
+  "pydantic>=2.7.0",
+  "pydantic-settings>=2.2.1",
+  "PySide6>=6.7.0",
+  "PyYAML>=6.0.1",
+  "pywin32>=306; platform_system == 'Windows'",
+  "rapidocr>=3.8.1",
+  "onnxruntime>=1.25.1",
+]
+
+[project.optional-dependencies]
+paddle-ocr = [
+  "paddlepaddle>=3.2.0",
+  "paddleocr>=2.7.3",
+]
+tesseract = [
+  "pytesseract>=0.3.10",
+]
+dev = [
+  "pytest>=8.2.0",
+  "ruff>=0.5.0",
+]
+
+[project.scripts]
+tor-llm-tool = "tor_llm_tool.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tor_llm_tool*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
