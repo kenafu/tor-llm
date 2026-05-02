@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from tor_llm_tool.assistant.image import prepare_image_for_llm
-from tor_llm_tool.assistant.prompts import SYSTEM_PROMPT, build_user_prompt
+from tor_llm_tool.assistant.prompts import build_user_prompt
 from tor_llm_tool.errors import AppError, ErrorCategory
 from tor_llm_tool.models import AssistantRequest
 from tor_llm_tool.providers.base import LlmProvider
@@ -246,7 +246,7 @@ class LmStudioProvider(LlmProvider):
         return model
 
     def _messages(self, request: AssistantRequest) -> list[dict[str, Any]]:
-        user_prompt = build_user_prompt(request)
+        user_prompt = build_user_prompt(request, self.config.prompts)
         content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
         if request.send_image and request.image is not None:
             mime, data = prepare_image_for_llm(
@@ -262,7 +262,7 @@ class LmStudioProvider(LlmProvider):
                 }
             )
         return [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": self.config.prompts.system},
             {"role": "user", "content": content},
         ]
 

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from tor_llm_tool.errors import AppError
 from tor_llm_tool.providers import LmStudioProvider
 from tor_llm_tool.settings import AppConfig
+from tor_llm_tool.ui.prompt_templates_dialog import PromptTemplatesDialog
 
 
 class SettingsDialog(QDialog):
@@ -44,6 +45,7 @@ class SettingsDialog(QDialog):
         self.send_image.setChecked(self.config.request.send_image)
         self.send_context = QCheckBox()
         self.send_context.setChecked(self.config.request.send_context)
+        self.prompt_templates = self.config.prompts.model_copy(deep=True)
 
         form = QFormLayout()
         form.addRow("Base URL", self.base_url)
@@ -67,6 +69,10 @@ class SettingsDialog(QDialog):
         form.addRow("Target language", self.target_language)
         form.addRow("Send image", self.send_image)
         form.addRow("Send context", self.send_context)
+
+        prompts_button = QPushButton("Edit Prompt Templates")
+        prompts_button.clicked.connect(self.edit_prompts)
+        form.addRow("Prompts", prompts_button)
 
         save_button = QPushButton("Save")
         cancel_button = QPushButton("Cancel")
@@ -96,7 +102,14 @@ class SettingsDialog(QDialog):
         config.ui.target_language = self.target_language.text().strip() or "ja"
         config.request.send_image = self.send_image.isChecked()
         config.request.send_context = self.send_context.isChecked()
+        config.prompts = self.prompt_templates.model_copy(deep=True)
         return config
+
+    def edit_prompts(self) -> None:
+        dialog = PromptTemplatesDialog(self.prompt_templates, self)
+        if dialog.exec():
+            self.prompt_templates = dialog.updated_prompts()
+            self.status.setText("Prompt templates updated. Save settings to persist them.")
 
     def refresh_models(self) -> None:
         try:

@@ -29,6 +29,7 @@ from tor_llm_tool.models import AssistantRequest, CaptureContext, CaptureResult,
 from tor_llm_tool.ocr import create_ocr_engine
 from tor_llm_tool.settings import AppConfig, save_config
 from tor_llm_tool.ui.hotkey import GlobalHotkey
+from tor_llm_tool.ui.crop_adjust_dialog import CropAdjustDialog
 from tor_llm_tool.ui.image_utils import pil_to_pixmap
 from tor_llm_tool.ui.region_selector import RegionSelector
 from tor_llm_tool.ui.settings_dialog import SettingsDialog
@@ -84,6 +85,9 @@ class MainWindow(QMainWindow):
         self.send_ocr.setChecked(self.config.request.send_ocr_text)
         self.send_context = QCheckBox("Context")
         self.send_context.setChecked(self.config.request.send_context)
+        self.send_image.toggled.connect(self._update_send_summary)
+        self.send_ocr.toggled.connect(self._update_send_summary)
+        self.send_context.toggled.connect(self._update_send_summary)
 
         self.question = QLineEdit()
         self.question.setPlaceholderText("Question for selected region")
@@ -96,6 +100,9 @@ class MainWindow(QMainWindow):
         self.ocr_text = QPlainTextEdit()
         self.ocr_text.setPlaceholderText("OCR text appears here")
         self.ocr_text.setMinimumHeight(180)
+        self.ocr_text.textChanged.connect(self._update_send_summary)
+        self.ocr_stats = QLabel("OCR: 0 chars")
+        self.send_summary = QLabel("")
 
         self.result = QTextEdit()
         self.result.setReadOnly(True)
@@ -105,6 +112,8 @@ class MainWindow(QMainWindow):
         run_button.clicked.connect(self.run_assistant)
         rerun_ocr_button = QPushButton("Run OCR")
         rerun_ocr_button.clicked.connect(self.run_ocr)
+        adjust_crop_button = QPushButton("Adjust Crop")
+        adjust_crop_button.clicked.connect(self.adjust_crop)
 
         controls = QVBoxLayout()
         row1 = QHBoxLayout()
@@ -113,9 +122,11 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.send_image)
         row1.addWidget(self.send_ocr)
         row1.addWidget(self.send_context)
+        row1.addWidget(adjust_crop_button)
         row1.addWidget(rerun_ocr_button)
         row1.addWidget(run_button)
         controls.addLayout(row1)
+        controls.addWidget(self.send_summary)
         controls.addWidget(QLabel("Question"))
         controls.addWidget(self.question)
         controls.addWidget(QLabel("App"))
@@ -128,6 +139,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.url_candidates)
         controls.addWidget(QLabel("OCR text"))
         controls.addWidget(self.ocr_text)
+        controls.addWidget(self.ocr_stats)
         controls.addWidget(QLabel("Result"))
         controls.addWidget(self.result, 1)
 
@@ -142,10 +154,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         self.setStatusBar(QStatusBar())
+        self._update_send_summary()
 
     def _bind_shortcut(self) -> None:
-        shortcut = QShortcut(QKeySequence(self.config.capture.hotkey), self)
-        shortcut.activated.connect(self.start_region_selection)
+        self.local_shortcut = QShortcut(QKeySequence(self.config.capture.hotkey), self)
+        self.local_shortcut.activated.connect(self.start_region_selection)
 
     def _bind_global_hotkey(self) -> None:
         self.global_hotkey = GlobalHotkey(self.config.capture.hotkey)
@@ -173,8 +186,25 @@ class MainWindow(QMainWindow):
     def _capture_after_overlay(self, x: int, y: int, width: int, height: int) -> None:
         try:
             context = collect_context_at(x + width // 2, y + height // 2)
-            image = capture_region(x, y, width, height)
-            self.capture_result = CaptureResult(image=image, context=context)
+            pad = 80
+            source_x = x - pad
+            source_y = y - pad
+            source_width = width + pad * 2
+            source_height = height + pad * 2
+            try:
+                source_image = capture_region(source_x, source_y, source_width, source_height)
+                crop_box = (pad, pad, pad + width, pad + height)
+                image = source_image.crop(crop_box)
+            except AppError:
+                image = capture_region(x, y, width, height)
+                source_image = image
+                crop_box = (0, 0, image.width, image.height)
+            self.capture_result = CaptureResult(
+                image=image,
+                context=context,
+                source_image=source_image,
+                crop_box=crop_box,
+            )
             self.show()
             self._show_capture()
             if self.config.ocr.auto_run_ocr:
@@ -223,6 +253,31 @@ class MainWindow(QMainWindow):
         worker.signals.error.connect(self._show_error)
         self.thread_pool.start(worker)
 
+    def adjust_crop(self) -> None:
+        if self.capture_result is None or self.capture_result.source_image is None:
+            self._show_error(
+                AppError(
+                    code="CAPTURE_FAILED",
+                    category=ErrorCategory.CAPTURE,
+                    message="先に範囲を選択してください。",
+                    retryable=True,
+                )
+            )
+            return
+        crop_box = self.capture_result.crop_box or (
+            0,
+            0,
+            self.capture_result.source_image.width,
+            self.capture_result.source_image.height,
+        )
+        dialog = CropAdjustDialog(self.capture_result.source_image, crop_box, self)
+        if dialog.exec():
+            self.capture_result.image = dialog.cropped_image()
+            self.capture_result.crop_box = dialog.crop_box()
+            self._show_capture()
+            if self.config.ocr.auto_run_ocr:
+                self.run_ocr()
+
     def _recognize_ocr(self, image) -> OcrResult:  # noqa: ANN001
         engine = create_ocr_engine(self.config)
         return engine.recognize(image)
@@ -230,6 +285,8 @@ class MainWindow(QMainWindow):
     def _on_ocr_result(self, result: OcrResult) -> None:
         self.ocr_result = result
         self.ocr_text.setPlainText(result.text)
+        confidence = f", confidence {result.confidence:.2f}" if result.confidence is not None else ""
+        self.ocr_stats.setText(f"OCR: {len(result.text)} chars{confidence}")
         if self.capture_result is not None:
             urls = extract_url_candidates(result.text)
             self.capture_result.context.url_candidates = urls
@@ -238,6 +295,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("OCR が完了しました。", 3000)
         else:
             self.statusBar().showMessage("OCR テキストは検出されませんでした。", 5000)
+        self._update_send_summary()
 
     def run_assistant(self) -> None:
         if self.capture_result is None:
@@ -310,11 +368,25 @@ class MainWindow(QMainWindow):
         self.result.insertPlainText(chunk)
         self.result.moveCursor(QTextCursor.MoveOperation.End)
 
+    def _update_send_summary(self) -> None:
+        enabled = []
+        if self.send_image.isChecked():
+            enabled.append("image")
+        if self.send_ocr.isChecked():
+            enabled.append(f"OCR text ({len(self.ocr_text.toPlainText())} chars)")
+        if self.send_context.isChecked():
+            enabled.append("context")
+        self.send_summary.setText("Sending: " + (", ".join(enabled) if enabled else "nothing"))
+
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.config, self)
         if dialog.exec():
+            old_hotkey = self.config.capture.hotkey
             self.config = dialog.updated_config()
             save_config(self.config)
+            if self.config.capture.hotkey != old_hotkey:
+                self.local_shortcut.setKey(QKeySequence(self.config.capture.hotkey))
+                self.global_hotkey.restart(self.config.capture.hotkey)
             self.statusBar().showMessage("設定を保存しました。", 3000)
 
     def _show_error(self, error: object) -> None:

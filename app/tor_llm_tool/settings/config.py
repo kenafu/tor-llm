@@ -98,6 +98,56 @@ class ErrorConfig(ConfigBase):
     retry_backoff_ms: int = Field(default=800, alias="retryBackoffMs")
 
 
+class PromptConfig(ConfigBase):
+    system: str = (
+        "あなたは画面範囲の読解支援ツールです。\n"
+        "入力にはスクリーンショット画像、OCRテキスト、アプリ名、ウィンドウタイトル、URL候補が含まれる場合があります。\n"
+        "OCRには誤りがあり得ます。画像・OCR・コンテキストのどれを根拠にしたかを区別し、判断できないことは断定しないでください。\n"
+        "回答は日本語で、簡潔かつ実用的に書いてください。"
+    )
+    translate_region: str = Field(
+        default=(
+            "指示: OCRテキストと画像を参考に、内容を自然な日本語へ翻訳してください。"
+            "出力は「翻訳」「OCR上の不確実点」「補足」に分けてください。"
+        ),
+        alias="translate-region",
+    )
+    explain_region: str = Field(
+        default=(
+            "指示: 選択範囲の内容を説明してください。"
+            "短い要約、文脈、重要点、不明点を分け、画像/OCR/推測を区別してください。"
+        ),
+        alias="explain-region",
+    )
+    ask_region: str = Field(
+        default=(
+            "指示: ユーザーの質問に、選択範囲の画像・OCRテキスト・コンテキストを根拠に回答してください。"
+            "範囲内情報だけで答えられない場合は、その旨を明確にしてください。"
+        ),
+        alias="ask-region",
+    )
+    clean_ocr: str = Field(
+        default=(
+            "指示: OCRテキストを読みやすく整形してください。"
+            "誤認識の推測修正は最小限にし、表・箇条書き・コード・ログの構造を保ってください。"
+        ),
+        alias="clean-ocr",
+    )
+    extract_structured: str = Field(
+        default="指示: 選択範囲の情報を構造化して、見出し・項目・値・注意点に分けてください。",
+        alias="extract-structured",
+    )
+
+    def instruction_for(self, task: str) -> str:
+        return {
+            "translate-region": self.translate_region,
+            "explain-region": self.explain_region,
+            "ask-region": self.ask_region,
+            "clean-ocr": self.clean_ocr,
+            "extract-structured": self.extract_structured,
+        }.get(task, self.explain_region)
+
+
 class AppConfig(ConfigBase):
     llm: LlmConfig = Field(default_factory=LlmConfig)
     request: RequestConfig = Field(default_factory=RequestConfig)
@@ -108,6 +158,7 @@ class AppConfig(ConfigBase):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     error: ErrorConfig = Field(default_factory=ErrorConfig)
+    prompts: PromptConfig = Field(default_factory=PromptConfig)
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:

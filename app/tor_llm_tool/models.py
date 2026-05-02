@@ -28,6 +28,8 @@ class CaptureContext:
 class CaptureResult:
     image: Image.Image
     context: CaptureContext
+    source_image: Image.Image | None = None
+    crop_box: tuple[int, int, int, int] | None = None
 
 
 @dataclass(slots=True)
@@ -48,4 +50,3 @@ class AssistantRequest:
     send_context: bool = True
     target_language: str = "ja"
     explanation_level: Literal["brief", "normal", "deep"] = "normal"
-

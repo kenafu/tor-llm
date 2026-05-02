@@ -17,6 +17,7 @@ class GlobalHotkey(QObject):
         self.hotkey = hotkey
         self._thread: threading.Thread | None = None
         self._hotkey_id = 0x544C4C4D
+        self._thread_id = 0
 
     def start(self) -> None:
         if platform.system().lower() != "windows":
@@ -27,9 +28,26 @@ class GlobalHotkey(QObject):
         self._thread = threading.Thread(target=self._run_windows_loop, daemon=True)
         self._thread.start()
 
+    def stop(self) -> None:
+        if platform.system().lower() != "windows":
+            return
+        if self._thread_id:
+            ctypes.windll.user32.PostThreadMessageW(self._thread_id, 0x0012, 0, 0)  # WM_QUIT
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1)
+        self._thread = None
+        self._thread_id = 0
+
+    def restart(self, hotkey: str) -> None:
+        self.stop()
+        self.hotkey = hotkey
+        self.start()
+
     def _run_windows_loop(self) -> None:
         modifiers, vk = _parse_windows_hotkey(self.hotkey)
         user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        self._thread_id = kernel32.GetCurrentThreadId()
         if not user32.RegisterHotKey(None, self._hotkey_id, modifiers, vk):
             self.failed.emit(f"Failed to register global hotkey: {self.hotkey}")
             return
@@ -79,4 +97,3 @@ def _parse_windows_hotkey(hotkey: str) -> tuple[int, int]:
     if len(key) == 1:
         return modifiers, ord(key.upper())
     return modifiers, 0x20
-
