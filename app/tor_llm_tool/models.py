@@ -36,6 +36,14 @@ class CaptureResult:
 class OcrResult:
     text: str
     confidence: float | None = None
+    detail: str = ""
+
+
+@dataclass(slots=True)
+class ConversationTurn:
+    question: str
+    answer: str
+    task: str
 
 
 @dataclass(slots=True)
@@ -50,3 +58,4 @@ class AssistantRequest:
     send_context: bool = True
     target_language: str = "ja"
     explanation_level: Literal["brief", "normal", "deep"] = "normal"
+    previous_turns: list[ConversationTurn] = field(default_factory=list)

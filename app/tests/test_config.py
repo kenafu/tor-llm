@@ -9,6 +9,8 @@ def test_default_config_values():
     assert config.ocr.provider == "rapidocr"
     assert config.request.send_image is True
     assert config.request.send_context is True
+    assert config.task_presets[0].task_id == "explain-region"
+    assert config.request.send_window_title is True
 
 
 def test_config_accepts_aliases():
@@ -22,3 +24,12 @@ def test_config_accepts_aliases():
     assert config.llm.timeout_sec == 30
     assert config.request.send_image is False
     assert config.request.send_context is True
+
+
+def test_config_accepts_task_preset_alias():
+    config = AppConfig.model_validate(
+        {"taskPresets": [{"id": "custom-task", "label": "Custom", "enabled": False}]}
+    )
+
+    assert config.task_presets[0].task_id == "custom-task"
+    assert config.task_presets[0].enabled is False

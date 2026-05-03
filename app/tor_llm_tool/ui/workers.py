@@ -36,15 +36,19 @@ class StreamWorker(QRunnable):
         self.args = args
         self.kwargs = kwargs
         self.signals = WorkerSignals()
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
 
     @Slot()
     def run(self) -> None:
-        chunks: list[str] = []
         try:
             for chunk in self.iterable_factory(*self.args, **self.kwargs):
-                chunks.append(str(chunk))
+                if self.cancelled:
+                    break
                 self.signals.result.emit(str(chunk))
         except Exception as exc:  # noqa: BLE001
             self.signals.error.emit(exc)
-        else:
+        finally:
             self.signals.finished.emit()

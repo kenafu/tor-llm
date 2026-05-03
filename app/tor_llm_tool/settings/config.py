@@ -31,6 +31,10 @@ class RequestConfig(ConfigBase):
     send_ocr_text: bool = Field(default=True, alias="sendOcrText")
     send_context: bool = Field(default=True, alias="sendContext")
     confirm_before_send: bool = Field(default=True, alias="confirmBeforeSend")
+    send_app_name: bool = Field(default=True, alias="sendAppName")
+    send_process_name: bool = Field(default=True, alias="sendProcessName")
+    send_window_title: bool = Field(default=True, alias="sendWindowTitle")
+    send_urls: bool = Field(default=True, alias="sendUrls")
 
 
 class OcrConfig(ConfigBase):
@@ -38,6 +42,9 @@ class OcrConfig(ConfigBase):
     languages: list[str] = Field(default_factory=lambda: ["ja", "en"])
     auto_run_ocr: bool = Field(default=True, alias="autoRunOcr")
     preprocess_image: bool = Field(default=True, alias="preprocessImage")
+    preprocess_grayscale: bool = Field(default=True, alias="preprocessGrayscale")
+    preprocess_contrast: bool = Field(default=True, alias="preprocessContrast")
+    preprocess_sharpen: bool = Field(default=False, alias="preprocessSharpen")
     confidence_visible: bool = Field(default=False, alias="confidenceVisible")
 
 
@@ -49,6 +56,7 @@ class CaptureConfig(ConfigBase):
     max_image_long_edge: int = Field(default=1600, alias="maxImageLongEdge")
     image_format: Literal["png", "jpeg"] = Field(default="png", alias="imageFormat")
     jpeg_quality: int = Field(default=90, alias="jpegQuality")
+    preview_send_image: bool = Field(default=True, alias="previewSendImage")
 
 
 class ContextConfig(ConfigBase):
@@ -85,6 +93,8 @@ class StorageConfig(ConfigBase):
 class LoggingConfig(ConfigBase):
     level: Literal["error", "info", "debug"] = "error"
     redact_sensitive_logs: bool = Field(default=True, alias="redactSensitiveLogs")
+    keep_diagnostics: bool = Field(default=True, alias="keepDiagnostics")
+    max_diagnostics: int = Field(default=200, alias="maxDiagnostics")
 
 
 class ErrorConfig(ConfigBase):
@@ -148,6 +158,22 @@ class PromptConfig(ConfigBase):
         }.get(task, self.explain_region)
 
 
+class TaskPresetConfig(ConfigBase):
+    task_id: str = Field(alias="id")
+    label: str
+    enabled: bool = True
+
+
+def default_task_presets() -> list[TaskPresetConfig]:
+    return [
+        TaskPresetConfig(id="explain-region", label="Explain"),
+        TaskPresetConfig(id="translate-region", label="Translate"),
+        TaskPresetConfig(id="ask-region", label="Ask"),
+        TaskPresetConfig(id="clean-ocr", label="Clean OCR"),
+        TaskPresetConfig(id="extract-structured", label="Structured"),
+    ]
+
+
 class AppConfig(ConfigBase):
     llm: LlmConfig = Field(default_factory=LlmConfig)
     request: RequestConfig = Field(default_factory=RequestConfig)
@@ -159,6 +185,9 @@ class AppConfig(ConfigBase):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     error: ErrorConfig = Field(default_factory=ErrorConfig)
     prompts: PromptConfig = Field(default_factory=PromptConfig)
+    task_presets: list[TaskPresetConfig] = Field(
+        default_factory=default_task_presets, alias="taskPresets"
+    )
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:

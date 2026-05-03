@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tor_llm_tool.models import AssistantRequest
-from tor_llm_tool.providers import LmStudioProvider, LlmProvider
+from tor_llm_tool.providers import LmStudioProvider, LlmProvider, OpenAICompatibleProvider
 from tor_llm_tool.settings import AppConfig
 
 
@@ -20,5 +20,6 @@ class AssistantService:
         return self.provider.list_models()
 
     def _create_provider(self, config: AppConfig) -> LlmProvider:
-        # Other local OpenAI-compatible providers can reuse this adapter later.
-        return LmStudioProvider(config)
+        if config.llm.provider == "lmstudio":
+            return LmStudioProvider(config)
+        return OpenAICompatibleProvider(config)

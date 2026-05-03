@@ -6,19 +6,30 @@ from io import BytesIO
 from PIL import Image
 
 
+def estimate_prepared_image(
+    image: Image.Image,
+    max_long_edge: int,
+    image_format: str,
+    jpeg_quality: int,
+) -> tuple[str, int, tuple[int, int]]:
+    prepared = _resize_for_llm(image, max_long_edge)
+    buffer = BytesIO()
+    if image_format == "jpeg":
+        prepared.save(buffer, format="JPEG", quality=jpeg_quality, optimize=True)
+        mime = "image/jpeg"
+    else:
+        prepared.save(buffer, format="PNG")
+        mime = "image/png"
+    return mime, buffer.tell(), prepared.size
+
+
 def prepare_image_for_llm(
     image: Image.Image,
     max_long_edge: int,
     image_format: str,
     jpeg_quality: int,
 ) -> tuple[str, str]:
-    prepared = image.convert("RGB")
-    width, height = prepared.size
-    long_edge = max(width, height)
-    if max_long_edge > 0 and long_edge > max_long_edge:
-        scale = max_long_edge / long_edge
-        prepared = prepared.resize((int(width * scale), int(height * scale)))
-
+    prepared = _resize_for_llm(image, max_long_edge)
     buffer = BytesIO()
     if image_format == "jpeg":
         prepared.save(buffer, format="JPEG", quality=jpeg_quality, optimize=True)
@@ -28,3 +39,12 @@ def prepare_image_for_llm(
         mime = "image/png"
     return mime, base64.b64encode(buffer.getvalue()).decode("ascii")
 
+
+def _resize_for_llm(image: Image.Image, max_long_edge: int) -> Image.Image:
+    prepared = image.convert("RGB")
+    width, height = prepared.size
+    long_edge = max(width, height)
+    if max_long_edge > 0 and long_edge > max_long_edge:
+        scale = max_long_edge / long_edge
+        prepared = prepared.resize((int(width * scale), int(height * scale)))
+    return prepared

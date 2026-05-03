@@ -57,4 +57,4 @@ class RapidOcrEngine(OcrEngine):
         texts = [str(text) for text in getattr(result, "txts", ()) if str(text).strip()]
         scores = [float(score) for score in getattr(result, "scores", ()) if score is not None]
         confidence = sum(scores) / len(scores) if scores else None
-        return OcrResult(text="\n".join(texts), confidence=confidence)
+        return OcrResult(text="\n".join(texts), confidence=confidence, detail=f"{len(texts)} lines")

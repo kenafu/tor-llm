@@ -30,6 +30,9 @@ dev = [
   "pytest>=8.2.0",
   "ruff>=0.5.0",
 ]
+build = [
+  "pyinstaller>=6.6.0",
+]
 
 [project.scripts]
 tor-llm-tool = "tor_llm_tool.main:main"

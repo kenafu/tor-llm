@@ -34,6 +34,16 @@ def build_user_prompt(request: AssistantRequest, prompts: PromptConfig | None = 
     if request.question.strip():
         parts.append("ユーザーの質問:\n" + request.question.strip())
 
+    if request.previous_turns:
+        lines = []
+        for index, turn in enumerate(request.previous_turns[-6:], start=1):
+            lines.append(
+                f"{index}. task={turn.task}\n"
+                f"Q: {turn.question.strip() or '(質問なし)'}\n"
+                f"A: {turn.answer.strip()}"
+            )
+        parts.append("同じ選択範囲での直近の会話履歴:\n" + "\n\n".join(lines))
+
     parts.append(_task_instruction(request, prompts))
     return "\n\n".join(parts)
 

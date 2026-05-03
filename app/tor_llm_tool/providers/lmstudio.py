@@ -38,58 +38,19 @@ class LmStudioProvider(LlmProvider):
                 timeout=self.config.llm.timeout_sec,
             )
         except httpx.ConnectError as exc:
-            raise AppError(
-                code="LMSTUDIO_NOT_RUNNING",
-                category=ErrorCategory.PROVIDER,
-                message="LM Studio に接続できません。",
-                detail=str(exc),
-                retryable=True,
-                user_action="LM Studio の Local Server を起動してから再試行してください。",
-            ) from exc
+            raise self._connect_error(exc) from exc
         except httpx.TimeoutException as exc:
-            raise AppError(
-                code="REQUEST_TIMEOUT",
-                category=ErrorCategory.NETWORK,
-                message="応答がタイムアウトしました。",
-                detail=str(exc),
-                retryable=True,
-                user_action="再送信するか、timeout を延長してください。",
-            ) from exc
+            raise self._timeout_error(exc) from exc
         except httpx.HTTPError as exc:
             raise AppError(
-                code="LMSTUDIO_NOT_RUNNING",
+                code="PROVIDER_NOT_RUNNING",
                 category=ErrorCategory.PROVIDER,
-                message="LM Studio への接続でエラーが発生しました。",
+                message=f"{_provider_display_name(self.config.llm.provider)} への接続でエラーが発生しました。",
                 detail=str(exc),
                 retryable=True,
             ) from exc
 
-        if response.status_code in {401, 403}:
-            raise AppError(
-                code="API_KEY_INVALID",
-                category=ErrorCategory.PROVIDER,
-                message="API key が無効です。",
-                detail=response.text[:300],
-                retryable=False,
-                user_action="LM Studio の API token を確認してください。",
-            )
-        if response.status_code == 404:
-            raise AppError(
-                code="MODEL_NOT_LOADED",
-                category=ErrorCategory.MODEL,
-                message="モデルがロードされていません。",
-                detail=response.text[:300],
-                retryable=True,
-                user_action="LM Studio でモデルをロードしてください。",
-            )
-        if response.status_code >= 400:
-            raise AppError(
-                code="PROVIDER_BAD_RESPONSE",
-                category=ErrorCategory.PROVIDER,
-                message="LLM の応答を解釈できませんでした。",
-                detail=response.text[:300],
-                retryable=True,
-            )
+        self._raise_for_response(response)
 
         try:
             data = response.json()
@@ -134,9 +95,9 @@ class LmStudioProvider(LlmProvider):
             raise self._timeout_error(exc) from exc
         except httpx.HTTPError as exc:
             raise AppError(
-                code="LMSTUDIO_NOT_RUNNING",
+                code="PROVIDER_NOT_RUNNING",
                 category=ErrorCategory.PROVIDER,
-                message="LM Studio への接続でエラーが発生しました。",
+                message=f"{_provider_display_name(self.config.llm.provider)} への接続でエラーが発生しました。",
                 detail=str(exc),
                 retryable=True,
             ) from exc
@@ -151,9 +112,9 @@ class LmStudioProvider(LlmProvider):
             raise self._timeout_error(exc) from exc
         except httpx.HTTPError as exc:
             raise AppError(
-                code="LMSTUDIO_NOT_RUNNING",
+                code="PROVIDER_NOT_RUNNING",
                 category=ErrorCategory.PROVIDER,
-                message="LM Studio への接続でエラーが発生しました。",
+                message=f"{_provider_display_name(self.config.llm.provider)} への接続でエラーが発生しました。",
                 detail=str(exc),
                 retryable=True,
             ) from exc
@@ -191,7 +152,7 @@ class LmStudioProvider(LlmProvider):
                 message="API key が無効です。",
                 detail=body[:300],
                 retryable=False,
-                user_action="LM Studio の API token を確認してください。",
+                user_action=f"{_provider_display_name(self.config.llm.provider)} の API token を確認してください。",
             )
         if response.status_code == 404:
             raise AppError(
@@ -200,7 +161,7 @@ class LmStudioProvider(LlmProvider):
                 message="モデルがロードされていません。",
                 detail=body[:300],
                 retryable=True,
-                user_action="LM Studio でモデルをロードしてください。",
+                user_action=f"{_provider_display_name(self.config.llm.provider)} でモデルをロードしてください。",
             )
         if response.status_code >= 400:
             raise AppError(
@@ -212,13 +173,14 @@ class LmStudioProvider(LlmProvider):
             )
 
     def _connect_error(self, exc: Exception) -> AppError:
+        provider_name = _provider_display_name(self.config.llm.provider)
         return AppError(
-            code="LMSTUDIO_NOT_RUNNING",
+            code="PROVIDER_NOT_RUNNING",
             category=ErrorCategory.PROVIDER,
-            message="LM Studio に接続できません。",
+            message=f"{provider_name} に接続できません。",
             detail=str(exc),
             retryable=True,
-            user_action="LM Studio の Local Server を起動してから再試行してください。",
+            user_action=f"{provider_name} のローカルサーバーを起動してから再試行してください。",
         )
 
     def _timeout_error(self, exc: Exception) -> AppError:
@@ -298,3 +260,16 @@ def _safe_response_text(response: httpx.Response) -> str:
         return response.text
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _provider_display_name(provider: str) -> str:
+    return {
+        "lmstudio": "LM Studio",
+        "ollama": "Ollama",
+        "llama-cpp": "llama.cpp server",
+        "openai-compatible": "OpenAI compatible API",
+    }.get(provider, "LLM provider")
+
+
+class OpenAICompatibleProvider(LmStudioProvider):
+    pass
